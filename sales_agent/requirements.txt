@@ -1,0 +1,7 @@
+google-adk
+google-cloud-bigquery
+google-cloud-aiplatform[agent-engines]
+db-dtypes
+pandas
+python-dotenv
+google-auth

@@ -1,0 +1,9 @@
+.venv
+.git
+.idea
+__pycache__
+*.pyc
+.env
+agent_engine_app.py
+*.log
+uv.lock
