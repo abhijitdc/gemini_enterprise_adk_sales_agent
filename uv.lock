@@ -649,6 +649,23 @@ wheels = [
 ]
 
 [[package]]
+name = "google-cloud-geminidataanalytics"
+version = "0.10.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpc-google-iam-v1" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/03/5d/9ba11863b243356af749e564cdbf4ab867bffddde6d80d17c250527fe85b/google_cloud_geminidataanalytics-0.10.0.tar.gz", hash = "sha256:c98e660b8cad5ccf42fb1a0738d74b4a8f6dd97995cbb599b56af745b971f570", size = 334935, upload-time = "2026-02-04T23:42:21.04Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/45/88/36c3f70a773f8ff9705cacdfdcc488f31e49d85693c6224fcd5870245951/google_cloud_geminidataanalytics-0.10.0-py3-none-any.whl", hash = "sha256:fb9beb9bee80552972dfec8d1d2b54cb3cebc9b81e24c772e20f20b9db210779", size = 292067, upload-time = "2026-02-04T23:42:18.967Z" },
+]
+
+[[package]]
 name = "google-cloud-iam"
 version = "2.21.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2197,6 +2214,7 @@ dependencies = [
     { name = "google-adk" },
     { name = "google-cloud-aiplatform", extra = ["agent-engines"] },
     { name = "google-cloud-bigquery" },
+    { name = "google-cloud-geminidataanalytics" },
     { name = "pandas" },
     { name = "python-dotenv" },
 ]
@@ -2207,6 +2225,7 @@ requires-dist = [
     { name = "google-adk", specifier = ">=1.24.1" },
     { name = "google-cloud-aiplatform", extras = ["agent-engines"], specifier = ">=1.136.0" },
     { name = "google-cloud-bigquery", specifier = ">=3.40.0" },
+    { name = "google-cloud-geminidataanalytics", specifier = ">=0.10.0" },
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
 ]

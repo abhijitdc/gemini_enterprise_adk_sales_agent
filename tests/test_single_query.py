@@ -1,5 +1,10 @@
 import asyncio
 import sys
+import os
+
+# Add parent directory to path to allow importing sales_agent
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from sales_agent.agent import create_runner
 from google.genai import types
 

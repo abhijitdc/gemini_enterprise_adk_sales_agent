@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Add parent directory to path to allow importing sales_agent
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import vertexai
 from vertexai import agent_engines
 from sales_agent.config import config

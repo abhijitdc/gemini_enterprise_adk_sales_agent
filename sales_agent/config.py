@@ -12,6 +12,8 @@ class AgentConfig:
     location: str
     bigquery_table_id: str
     bigquery_location: str
+    bq_ca_api_location: str
+    bq_data_agent_id: str
     model: str
     agent_engine_id: Optional[str] = None
     use_agent_engine_memory: bool = False
@@ -33,6 +35,8 @@ class AgentConfig:
             location=location,
             bigquery_table_id=bigquery_table_id,
             bigquery_location=os.getenv("BIGQUERY_LOCATION", location),
+            bq_ca_api_location=os.getenv("BQ_CA_API_LOCATION", "us-central1"),
+            bq_data_agent_id=os.getenv("BQ_DATA_AGENT_ID", "bq_tool_agent"),
             model=os.getenv("MODEL", "gemini-2.0-flash"),
             agent_engine_id=os.getenv("AGENT_ENGINE_ID"),
             use_agent_engine_memory=os.getenv("USE_AGENT_ENGINE_MEMORY", "false").lower() == "true",

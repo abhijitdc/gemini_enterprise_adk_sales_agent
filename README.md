@@ -1,15 +1,23 @@
 # Sales Assist Agent
 
-A powerful, AI-driven sales assistant built with the **Google Agent Development Kit (ADK)** and deployed on **Vertex AI Agent Engine**. This agent provides natural language insights into sales transaction data stored in Google BigQuery.
+A powerful, AI-driven sales assistant built with the **Google Agent Development Kit (ADK)** and deployed on **Vertex AI Agent Engine**. This agent provides natural language insights into sales transaction data stored in Google BigQuery by leveraging the **Conversational Analytics API**.
 
 ## Overview
 
-The Sales Assist Agent leverages Gemini models to translate user queries into SQL, execute them against a BigQuery dataset, and provide coherent, data-driven answers. It includes advanced discovery and schema inspection tools to ensure accuracy and reliability.
+The Sales Assist Agent acts as a secure intermediary between users and their data. Instead of generating SQL directly, it delegates the entire analytical process—schema discovery, query formulation, and execution—to the **BigQuery Conversational Analytics API**. This ensures robust handling of complex queries, joins, and security policies (Row-Level and Column-Level Security).
+
+## Reference Blog Post
+
+This project is backed by a detailed blog post in the **Google Cloud Community on Medium**:
+[Power Up Your ADK Agent: Building Secure Data Agents with Gemini Enterprise & Vertex AI Agent Engine](https://medium.com/google-cloud/power-up-your-adk-agent-building-secure-data-agents-with-gemini-enterprise-vertexai-agent-engine-23020870d3fd).
+
+**Implementation Note:**
+While the blog post describes using a direct BigQuery client for SQL execution, this repository has been updated to use the **BigQuery Conversational Analytics API**. This modern approach allows the agent to delegate SQL generation and execution to a managed service while maintaining end-user identity propagation through Gemini Enterprise managed OAuth tokens. The core architectural concepts and deployment workflows described in the blog remain fully applicable.
 
 ## Core Features
 
-- **BigQuery Integration**: Direct access to sales data using context-aware tools (`execute_sql`, `list_tables`, `get_table_schema`).
-- **Autonomous Discovery**: The agent can list tables and inspect schemas automatically before performing queries.
+- **Conversational Analytics Integration**: Uses the `call_conversational_analytics_api` tool to process natural language questions directly against BigQuery data.
+- **Advanced Query Handling**: Capable of answering complex multi-table join questions and aggregations without manual SQL generation.
 - **Vertex AI Agent Engine**: Deployed as a remote reasoning engine for scalability, security, and session management.
 - **Managed Authentication**: Support for **Gemini Enterprise Managed OAuth tokens** when deployed, with local fallback to Application Default Credentials (ADC).
 - **Session & Memory**: Native support for persistent multi-turn conversations through Vertex AI Session/Memory services.
@@ -22,13 +30,14 @@ The Sales Assist Agent leverages Gemini models to translate user queries into SQ
 ├── sales_agent/            # Core agent logic
 │   ├── agent.py            # Agent definition and runner configuration
 │   ├── config.py           # Environment variable management
-│   └── tools.py            # Context-aware BigQuery tools
+│   └── tools.py            # BigQuery Conversational Analytics API wrapper
 ├── tests/                  # Unit and integration tests
+│   ├── test_single_query.py    # Local test for single-table queries
+│   ├── test_complex_joins.py   # Local test for multi-table join queries
+│   └── test_deployed_agent.py  # Validation for the remote agent on Vertex AI
 ├── .env.example            # Environment variable template
 ├── deploy.sh               # Deployment script for Vertex AI
-├── run_agent.py            # Local runner for testing
-├── test_agent_connection.py # Local connection validation
-├── test_deployed_agent.py  # Validation for the remote agent
+├── run_agent.py            # Local runner for interactive testing
 └── pyproject.toml          # Dependency management (uv)
 ```
 
@@ -41,6 +50,7 @@ The Sales Assist Agent leverages Gemini models to translate user queries into SQ
   - BigQuery API
   - Cloud Storage API
   - Discovery Engine API
+  - BigQuery Data Analytics API
 - **Gemini Enterprise Auth**: Required for managed token retrieval in production.
 
 ## Configuration
@@ -61,12 +71,12 @@ The Sales Assist Agent leverages Gemini models to translate user queries into SQ
     - `GOOGLE_CLOUD_PROJECT`: Your Google Cloud Project ID.
     - `GOOGLE_CLOUD_LOCATION`: Vertex AI region (e.g., `us-central1`).
     - `BIGQUERY_TABLE_ID`: Default table for queries (`project.dataset.table`).
-    - `BIGQUERY_LOCATION`: (Optional) Location of the BigQuery dataset (e.g., `US`, `EU`). Defaults to `GOOGLE_CLOUD_LOCATION` if not set.
+    - `BIGQUERY_LOCATION`: (Optional) Location of the BigQuery dataset (e.g., `US`, `EU`).
+    - `BQ_CA_API_LOCATION`: Region for the Conversational Analytics API (e.g., `global` or `us-central1`).
+    - `BQ_DATA_AGENT_ID`: The ID of the BigQuery Data Agent (e.g., `sales_demo_agent_001`).
     - `MODEL`: (Optional) The Gemini model to use (e.g., `gemini-2.0-flash`).
     - `GEMINI_ENTERPRISE_AUTH_ID`: (Optional) The OAuth Client ID for Gemini Enterprise managed authentication.
     - `AGENT_ENGINE_ID`: (Optional) The ID of your deployed Agent Engine (populated after first deploy).
-    - `USE_AGENT_ENGINE_MEMORY`: (Optional) Enable Vertex AI Agent Engine memory.
-    - `USE_AGENT_ENGINE_SESSION`: (Optional) Enable Vertex AI Agent Engine session management.
 
 ## Deployment
 
@@ -81,23 +91,31 @@ The script uses `adk deploy` to push the `sales_agent` module. After deployment,
 
 ## Agent Workflow
 
-The agent is instructed to follow a robust data discovery workflow:
-1.  **Discover**: Use `list_tables` to see available datasets.
-2.  **Inspect**: Use `get_table_schema` to verify column names and types.
-3.  **Query**: Execute optimized SQL via `execute_sql`.
+The agent follows a delegated workflow:
+1.  **Receive Question**: The user asks a natural language question (e.g., "Top 5 customers by revenue").
+2.  **Delegate**: The agent calls `call_conversational_analytics_api` with the user's question.
+3.  **Process**: The Conversational Analytics API autonomously discovers schema, generates SQL, executes the query, and returns the result (or error).
+4.  **Respond**: The agent presents the final answer to the user.
 
 ## Verification
 
 ### Local Testing
-Verify connectivity to the agent logic and BigQuery:
+Verify connectivity to the agent logic and the Conversational Analytics API:
+
+**Single Query Test:**
 ```bash
-uv run python test_agent_connection.py
+uv run python tests/test_single_query.py "Show me the top 5 customers by revenue"
+```
+
+**Complex Join Test:**
+```bash
+uv run python tests/test_complex_joins.py
 ```
 
 ### Remote Testing
 Verify the deployed agent on Vertex AI:
 ```bash
-uv run python test_deployed_agent.py
+uv run python tests/test_deployed_agent.py
 ```
 
 ## Enterprise Sharing (Gemini Enterprise Web)
@@ -127,7 +145,7 @@ Gemini Enterprise requires a Web Application Client ID to retrieve data on behal
 1.  **Agent Name**: `Sales Assist Agent` (User-facing name).
 2.  **Description**: `Answers questions about sales transactions using BigQuery data.`
 3.  **Reasoning Engine Path**: Paste your Vertex AI resource path:
-    `https://{GOOGLE_CLOUD_LOCATION}-aiplatform.googleapis.com/v1/projects/{GOOGLE_CLOUD_PROJECT}/locations/{GOOGLE_CLOUD_LOCATION}/reasoningEngines/{AGENT_ENGINE_ID}`
+    `https://us-central1-aiplatform.googleapis.com/v1/projects/867334375554/locations/us-central1/reasoningEngines/7542336405729443840`
 4.  Click **Create**.
 
 ### 4. Data Security & OAuth
@@ -147,7 +165,6 @@ For more information on tracing, see the [official documentation](https://cloud.
 
 ## Technical Details
 
-
 - **ToolContext**: All BigQuery tools are context-aware, fetching managed OAuth tokens from the `tool_context` state when available.
 - **Authentication Flow**:
     - **Remote**: Uses `GEMINI_ENTERPRISE_AUTH_ID` to retrieve tokens from `ToolContext`.
@@ -157,4 +174,3 @@ For more information on tracing, see the [official documentation](https://cloud.
 ---
 
 *Disclaimer: This project is for demonstration purposes and should be reviewed for security best practices before production use.*
-

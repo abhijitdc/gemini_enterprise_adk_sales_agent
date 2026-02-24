@@ -38,3 +38,9 @@ mcp_config.json
 credentials.json
 token.json
 sales_agent_tmp*
+# Local/Untracked Files
+GEMINI.md
+create_bq_agent.py
+llms-full.txt
+security_enhancement_plan.md
+test_create_agent_global.py

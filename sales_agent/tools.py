@@ -1,8 +1,10 @@
 import logging
+import json
 import google.auth
 from google.adk.tools.tool_context import ToolContext
 from google.cloud import bigquery
 from google.oauth2.credentials import Credentials
+import google.cloud.geminidataanalytics_v1alpha as geminidataanalytics
 
 try:
     from .config import config
@@ -34,79 +36,71 @@ def get_authorized_bigquery_client(tool_context: ToolContext = None) -> bigquery
         location=config.bigquery_location
     )
 
-def execute_sql(sql: str, tool_context: ToolContext = None) -> str:
+def call_conversational_analytics_api(user_message: str, tool_context: ToolContext = None) -> str:
     """
-    Executes a standard SQL query in BigQuery.
-    
-    Use this tool ONLY after you know the table schema and column names.
-    This is the primary tool for answering analytical questions and retrieving specific data points.
+    Calls the BigQuery Conversational Analytics API.
     
     Args:
-        sql: The valid GoogleSQL query to execute.
+        user_message: The question or message to ask the data agent.
         tool_context: The ToolContext containing runtime information.
     """
-    logger.info(f"Executing SQL: {sql}")
-    client = get_authorized_bigquery_client(tool_context)
+    logger.info(f"Calling Conversational Analytics API with message: {user_message} for agent: {config.bq_data_agent_id}")
     
+    # Extract token similar to get_authorized_bigquery_client
+    credentials = None
+    auth_id = config.gemini_enterprise_auth_id
+    if tool_context and tool_context.state and auth_id:
+        token = tool_context.state.get(f"{auth_id}")
+        if token:
+            logger.info("Using Gemini Enterprise managed OAuth token from ToolContext")
+            credentials = Credentials(token=token)
+    
+    if not credentials:
+        logger.info("Falling back to Application Default Credentials (ADC) for Conversational API")
+        try:
+            scopes = ['https://www.googleapis.com/auth/cloud-platform']
+            credentials, _ = google.auth.default(scopes=scopes)
+        except Exception as e:
+            logger.error(f"Error getting default credentials: {e}")
+            return f"Error getting credentials: {str(e)}"
+            
+    if not credentials:
+        return "Error: Could not obtain valid authentication credentials."
+
     try:
-        query_job = client.query(sql)
-        results = query_job.result()
+        data_chat_client = geminidataanalytics.DataChatServiceClient(credentials=credentials)
         
-        # Simple string representation for the agent
-        rows = [dict(row) for row in results]
-        if not rows:
-            return "No results found."
-        return str(rows)
-    except Exception as e:
-        logger.error(f"Error executing BigQuery SQL: {e}")
-        return f"Error executing query: {str(e)}"
+        messages = [
+            geminidataanalytics.Message(
+                user_message=geminidataanalytics.UserMessage(text=user_message)
+            )
+        ]
+        
+        data_agent_context = geminidataanalytics.DataAgentContext(
+            data_agent=data_chat_client.data_agent_path(
+                config.project_id, config.bq_ca_api_location, config.bq_data_agent_id
+            ),
+        )
 
-def list_tables(dataset_id: str, tool_context: ToolContext = None) -> str:
-    """
-    Lists all available tables in a specific BigQuery dataset.
-    
-    Use this tool if the user's request is ambiguous or if you need to discover 
-    what data is available in the project before asking for a schema or querying.
-    
-    Args:
-        dataset_id: The full ID of the dataset (e.g., 'project.dataset_id').
-        tool_context: The ToolContext containing runtime information.
-    """
-    logger.info(f"Listing tables in dataset: {dataset_id}")
-    client = get_authorized_bigquery_client(tool_context)
-    
-    try:
-        tables = client.list_tables(dataset_id)
-        table_ids = [table.table_id for table in tables]
-        if not table_ids:
-            return f"No tables found in dataset {dataset_id}."
-        return f"Tables in {dataset_id}: {', '.join(table_ids)}"
-    except Exception as e:
-        logger.error(f"Error listing tables: {e}")
-        return f"Error listing tables: {str(e)}"
+        request = geminidataanalytics.ChatRequest(
+            parent=f"projects/{config.project_id}/locations/{config.bq_ca_api_location}",
+            messages=messages,
+            data_agent_context=data_agent_context,
+        )
 
-def get_table_schema(table_id: str, tool_context: ToolContext = None) -> str:
-    """
-    Retrieves the detailed schema (field names and data types) for a specific BigQuery table.
-    
-    ALWAYS use this tool before writing a SQL query for a table you haven't inspected yet.
-    Ensures that your SQL query uses correct column names and follows the expected structure.
-    
-    Args:
-        table_id: The full ID of the table (e.g., 'project.dataset.table_id').
-        tool_context: The ToolContext containing runtime information.
-    """
-    logger.info(f"Getting schema for table: {table_id}")
-    client = get_authorized_bigquery_client(tool_context)
-    
-    try:
-        table = client.get_table(table_id)
-        schema_info = [f"{field.name}: {field.field_type}" for field in table.schema]
-        return f"Schema for {table_id}:\n" + "\n".join(schema_info)
+        stream = data_chat_client.chat(request=request)
+        
+        responses = []
+        for response in stream:
+            # The SDK returns proto objects, which we can safely serialize to JSON for the LLM
+            responses.append(type(response).to_json(response))
+            
+        return "[" + ",\n".join(responses) + "]"
+        
     except Exception as e:
-        logger.error(f"Error getting table schema: {e}")
-        return f"Error getting table schema: {str(e)}"
+        logger.error(f"Error calling Conversational Analytics SDK: {e}")
+        return f"Error: {e}"
 
 def get_bigquery_tools() -> list:
     """Returns a list of custom context-aware BigQuery tools."""
-    return [execute_sql, list_tables, get_table_schema]
+    return [call_conversational_analytics_api]
